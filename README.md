@@ -30,7 +30,7 @@ Visit our GitHub repository, explore the code, and join the MNN Slicer community
 🌐 Explore our MNN Slicer on GitHub 🍽️✨
 
 
-Procedures:
+# Procedures:
 Pip install the followings:
 pip install opencv-python, 
 pip install CV,
@@ -38,6 +38,7 @@ pip install numpy,
 pip install PyQt5,
 pip install serial,
 
-Use the code in VS.code, and run
+# Use the code in VS.code, and run
+# Follow The link to youtube video.
 
 
