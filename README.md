@@ -6,7 +6,7 @@ Introducing MNN Slicer, a groundbreaking 3D slicer designed specifically for Foo
 
 🌐 Key Features:
 
-    DIY Off-Shelf Compatibility: MNN Slicer seamlessly integrates with your existing 3D printer, transforming it into a cutting-edge Food-3D Bioprinting machine with 3D            pirnted pumps.
+    DIY Off-Shelf Compatibility: MNN Slicer seamlessly integrates with your existing 3D printer, transforming it into a cutting-edge Food-3D Bioprinting machine with 3D pirnted pumps.
     Simplified Operation: Say goodbye to complex G-Code! MNN Slicer operates directly through Arduino backend and Python, ensuring an intuitive and hassle-free user experience.
     Stepper Precision: Control the X, Y, and Z axes with Arduino-powered steppers, providing meticulous control over your culinary creations.
     DC Motor Extruders: Experience the future of extrusion with high-torque DC motors, enabling the use of multiple powerful extruders for a wide range of food materials.
