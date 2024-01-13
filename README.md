@@ -1,5 +1,5 @@
 #  <p align="center"> MNN-Slicer. </p>
-#  <p align="center"> RDI Prototyping Lab, Faculty of BioTech,MSA University. </p>
+#  <p align="center"> RDI Prototyping Lab, Faculty of BioTech, MSA University. </p>
 🍲 Welcome to the Future of Food Printing with MNN Slicer! 🚀
 
 Introducing MNN Slicer, a groundbreaking 3D slicer designed specifically for Food-3D Bioprinting using your favorite off-the-shelf 3D printer. Unleash your culinary creativity with our innovative slicer that combines simplicity, power, and versatility, away from the Marline Complexity.
