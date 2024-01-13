@@ -1,0 +1,343 @@
+import cv2
+import cv2 as cv
+import numpy as np
+from PyQt5.QtWidgets import QApplication, QMainWindow, QScrollBar, QLabel, QPushButton, QFileDialog, QWidget,QVBoxLayout
+from PyQt5.QtCore import Qt, QTimer, QObject, pyqtSignal
+import sys
+import serial
+import threading
+import math
+
+class SerialThread(QObject):
+    data_received = pyqtSignal(str)
+
+    def __init__(self, port='/dev/cu.usbmodem14201'):
+        super().__init__()
+        self.port = port
+        self.running = False
+        self.arduino = None
+
+    def start_serial(self):
+        self.running = True
+        self.arduino = serial.Serial(self.port, 115200, timeout=1)
+        while self.running:
+            if self.arduino:
+                try:
+                    response = self.arduino.readline().rstrip(b'\r\n').decode('utf-8')
+                    self.data_received.emit(response)
+                except serial.SerialException as e:
+                    # Handle exceptions, e.g., print or log them
+                    print(f"SerialException: {e}")
+            else:
+                break
+
+    def stop_serial(self):
+        self.running = False
+        if self.arduino:
+            self.arduino.close()
+
+class Window(QMainWindow):
+    def __init__(self):
+        super().__init__()
+        #main GUIwindow setup
+        self.setWindowTitle("line step")
+        self.setGeometry(100, 100, 600, 700)
+
+        #linestep scrollbar setup 
+        #linstep controls distance between each line, subsequently controlling num of lines  
+        self.scrollbar = QScrollBar(self)
+        self.scrollbar.setGeometry(100, 50, 30, 200)
+        self.scrollbar.setRange(1, 200)
+        self.scrollbar.setStyleSheet("background : lightgreen;")
+        self.scrollbar.valueChanged.connect(self.update_linestep)
+        self.label = QLabel("line step Value: 20", self)
+        self.label.setGeometry(150, 100, 300, 80)
+        self.label.setWordWrap(True)
+        self.linestep = 20
+
+        #theshold scrollbar setup 
+        #threshold controls masking od desired shape
+        #this program can handle both binary and non binary images 
+        self.threshscrollbar = QScrollBar(self)
+        self.threshscrollbar.setGeometry(300, 50, 30, 200)
+        self.threshscrollbar.setRange(25, 250)  # Adjust the range according to your needs
+        self.threshscrollbar.setStyleSheet("background : lightblue;")
+        self.threshscrollbar.valueChanged.connect(self.update_threshold)
+        self.threshold_label = QLabel("Threshold Value: 125", self)
+        self.threshold_label.setGeometry(350, 100, 300, 80)
+        self.threshold_label.setWordWrap(True)
+        self.threshold_value=125
+
+        # self.vid = cv2.imread(filename)  # Update with your image path
+
+        #intializing a line counter
+        self.z = 0
+        self.a=-1
+
+        # start button when clicked printing starts and data is sent to arduino
+        self.start = False # intailized as False and changes once user clicks the button
+        self.start_button = QPushButton("Start", self)
+        self.start_button.setGeometry(400, 300, 150, 50)
+        self.start_button.clicked.connect(self.start_action)
+       
+       # button for image upload from desktop
+        self.upload_button = QPushButton("Upload Image", self)
+        self.upload_button.setGeometry(400, 400, 150, 50)
+        self.upload_button.clicked.connect(self.upload_image)
+        # button for image upload from desktop
+
+        #button for printing only one random line to test the program first
+        self.tryline=False # intailized as False and changes once user clicks the button
+        self.tryoneline = QPushButton("try 1 line", self)
+        self.tryoneline.setGeometry(400, 200, 150, 50)
+        self.tryoneline.clicked.connect(self.tryonelineaction)
+
+        #terminator
+        self.exit_button = QPushButton("Exit", self)
+        self.exit_button.setGeometry(400, 600, 150, 50)
+        self.exit_button.clicked.connect(self.exit_program)
+        #flip
+        self.flip=False
+        self.flip_button = QPushButton("flip mask", self)
+        self.flip_button.setGeometry(400, 500, 150, 50)
+        self.flip_button.clicked.connect(self.flip_mask)
+
+
+        self.timer = QTimer(self)
+        self.timer.timeout.connect(self.update_video)
+        self.timer.start(1)
+        self.serial_thread = SerialThread('/dev/cu.usbmodem14201')
+        self.serial_thread.data_received.connect(self.handle_serial_data)
+        self.serial_worker = threading.Thread(target=self.serial_thread.start_serial)
+        self.serial_worker.start()
+        self.vidd=False
+        self.show()
+
+    def upload_image(self):
+        options = QFileDialog.Options()
+        options |= QFileDialog.DontUseNativeDialog
+        fileName, _ = QFileDialog.getOpenFileName(self, "QFileDialog.getOpenFileName()", "", "Image Files (*.png *.jpg *.jpeg *.bmp *.gif *.webp)", options=options)
+        if fileName:
+            self.vid = cv2.imread(fileName)
+            cv.namedWindow('results')
+            self.vidd=True # once the image is uploaded this value is setr to true to start the program
+    def exit_program(self):
+        if self.serial_thread.running:
+            # Send a stop command to Arduino
+            self.serial_thread.arduino.write("exit".encode('utf-8'))
+            # Stop the serial thread
+            self.serial_thread.stop_serial()
+            # Wait for the serial thread to finish
+            self.serial_worker.join()
+        cv.destroyAllWindows()
+        self.timer.stop()  # Stop the timer
+        self.close()
+
+    def flip_mask(self):
+        self.flip=True
+
+    def update_threshold(self):
+        self.threshold_value = self.threshscrollbar.value()#the value is updated according to users adjustment
+        self.threshold_label.setText("Threshold Value: " + str(self.threshold_value))
+    
+    def start_action(self):
+        self.start =True
+        self.a=0
+    
+    def tryonelineaction(self):
+        self.tryline=True
+    
+    def update_linestep(self):
+        self.linestep = self.scrollbar.value()#the value is updated according to users adjustment
+        self.label.setText("Current Value: " + str(self.linestep))
+
+    def handle_serial_data(self, response):
+        print(response)
+
+        if self.vidd==True:# when an image is uploaded the condtion starts
+
+            if self.tryline==True:#when user clicks the try 1 line button the trial print is started
+                line_str = f"downtry,{self.line_lengths[40]}"
+                self.serial_thread.arduino.write(line_str.encode('utf-8'))
+                self.tryline=False # resetting the try to False so that the random line is not printed again
+
+
+            #self.lines is a list that includes the pixel locations for all displayed lines , space between each line is known from linestep 
+            if self.z<=len(self.lines): # when the line counter is less than the len of line list the condtion starts 
+
+                #----------------------------------------CASE A------------------------------------------
+                #while printing we have two direction , one is printing DOWN when line counter is even(every other line)
+                #also this conditon is started when user clicks start button                           ------line1--------                   -----------line2---------------
+                # lines list is consisted of smaller lists each reasmmbleing a line displayed [(x0,y0),(x1,y1),(x2,y2),(x3,y3),(x4,y4)],[(x0,y0),(x1,y1),(x2,y2),(x3,y3),(x4,y4)]
+                #each of these smaller lists consits of tuples(x,y) reasmmbling all pixel locations or points on the line
+                if self.z%2==0 and self.a!=-1:
+                    
+                    pointA = self.lines[self.z][-1] # pointA resambles the last point of lines[z] ( we need it to calculate dist to move either up or down to the next line )
+                    #                  we used [-1] as after moving down of  the line and to move to the next to we draw a hypotenuse from pointA-PointB 
+                    if self.z + 1 == len(self.lines): #when line counter z is almost running out of lines list meaning that there is no next line to move to so pointB=pointA
+                        pointB = self.lines[self.z][-1]
+
+                    elif self.z + 1 < len(self.lines):
+                        pointB = self.lines[self.z+1][-1] # pointB resambles the last point of lines[z+1] meaning the line we want to move to (next line)
+                    #         -----------------------------CASEA1------------------
+                    #inside the downward movement we have two possiblities whether we are moving towards a higher point (pointB)
+                    #so our  direction must consider moving towards that point without getting out of the shape range
+                    # movement will be 1. down of the line till pointA, 2. using Pythagorean theorem we will caculate the unknown up movement 
+                    #towards pointB 3. along with already known right dist (linestep)
+                    if pointB[1]<pointA[1]:
+                        if response=="donefinal" or self.start==True:
+                            line_str = f"down,{self.line_lengths[self.linestep*self.z]}"
+                            self.serial_thread.arduino.write(line_str.encode('utf-8'))
+                            self.start=False
+                        elif response=="donedown":
+                            distAB= math.sqrt(((pointA[0]-pointB[0])**2)+((pointA[1]-pointB[1])**2))
+                            lenup=math.sqrt((distAB**2)-(self.linestep**2))
+                            line_str = f"up,{lenup}"
+                            self.serial_thread.arduino.write(line_str.encode('utf-8'))
+                        elif response=="doneup":
+                            line_str = f"rightfinal,{self.linestep}"
+                            self.serial_thread.arduino.write(line_str.encode('utf-8'))
+                            self.z+=1 # after finshing one line movement and moved to next line start point we add +1 to line counter
+                    #         -----------------------------CASEA2------------------
+                    #  moving twoards a lower PointB
+                    ## movement will be 1. down of the line till pointA, 2. using Pythagorean theorem we will caculate the unknown down movement 
+                    #towards pointB 3. along with already known right dist (linestep)
+                    elif pointB[1]>pointA[1]:
+                        if response=="donefinal" or self.start==True:
+                            line_str = f"down,{self.line_lengths[self.linestep*self.z]}"
+                            self.serial_thread.arduino.write(line_str.encode('utf-8'))
+                            self.start=False
+                        elif response=="donedown":
+                            line_str = f"right1,{self.linestep}"
+                            self.serial_thread.arduino.write(line_str.encode('utf-8'))
+                        elif response=="doneright1":
+                            distAB= math.sqrt(((pointA[0]-pointB[0])**2)+((pointA[1]-pointB[1])**2))
+                            lendown=math.sqrt((distAB**2)-(self.linestep**2))
+                            line_str = f"downfinal,{lendown}"
+                            self.serial_thread.arduino.write(line_str.encode('utf-8'))
+                            self.z+=1
+                    #this case is applied only when there is no next line 
+                    elif pointA[1]==pointB[1] and pointA[0]!=pointB[0]:
+                        if response=="donefinal" or self.start==True:
+                            line_str = f"down,{self.line_lengths[self.linestep*self.z]}"
+                            self.serial_thread.arduino.write(line_str.encode('utf-8'))
+                            self.start=False
+                        elif response=="donedown":
+                            line_str = f"rightfinal,{self.linestep}"
+                            self.z+=1
+                    elif pointA[1]==pointB[1] and pointA[0]==pointB[0]:
+                        line_str = f"downfinal,{self.line_lengths[self.linestep*self.z]}"
+                        self.serial_thread.arduino.write(line_str.encode('utf-8'))
+                        self.z+=1
+                        self.a=-1
+                    
+                ##----------------------------------------CASE B------------------------------------------
+                #same cases applies to this condtion but with upward motion applied when z is odd num(every other line)
+                elif self.z%2==1 and self.a!=-1:
+                    if self.z<len(self.lines):
+                        # pointA=self.lines[self.z][0]
+                        # pointB = self.lines[self.z+1][0]
+                        pointA = self.lines[self.z][0]
+                        if self.z + 1 == len(self.lines):
+                            pointB = self.lines[self.z][0]
+                        elif self.z + 1 < len(self.lines):
+                            pointB = self.lines[self.z+1][0]
+                        #         -----------------------------CASEB1------------------
+                        if pointB[1]<pointA[1]:
+                            if response=="donefinal":
+                                line_str = f"up,{self.line_lengths[self.linestep*self.z]}"
+                                self.serial_thread.arduino.write(line_str.encode('utf-8'))
+                            elif response=="doneup":
+                                line_str = f"right,{self.linestep}"
+                                self.serial_thread.arduino.write(line_str.encode('utf-8'))
+                            elif response=="doneright":
+                                distAB= math.sqrt(((pointA[0]-pointB[0])**2)+((pointA[1]-pointB[1])**2))
+                                lenup=math.sqrt((distAB**2)-(self.linestep**2))
+                                line_str = f"upfinal,{lenup}"
+                                self.serial_thread.arduino.write(line_str.encode('utf-8'))
+                                self.z+=1
+                        #         -----------------------------CASEB2------------------
+                        elif pointB[1]>pointA[1]:
+                            if response=="donefinal":
+                                line_str = f"up,{self.line_lengths[self.linestep*self.z]}"
+                                self.serial_thread.arduino.write(line_str.encode('utf-8'))
+                            elif response=="doneup":
+                                distAB= math.sqrt(((pointA[0]-pointB[0])**2)+((pointA[1]-pointB[1])**2))
+                                lendown=math.sqrt((distAB**2)-(self.linestep**2))
+                                line_str = f"down,{lendown}"
+                                self.serial_thread.arduino.write(line_str.encode('utf-8'))
+
+                            elif response=="donedown":
+                                line_str = f"rightfinal,{self.linestep}"
+                                self.serial_thread.arduino.write(line_str.encode('utf-8'))
+                                self.z+=1
+                        elif pointA[1]==pointB[1]and pointA[0]!=pointB[0]:
+                            if response=="donefinal" :
+                                line_str = f"up,{self.line_lengths[self.linestep*self.z]}"
+                                self.serial_thread.arduino.write(line_str.encode('utf-8'))
+                            elif response=="doneup":
+                                line_str = f"rightfinal,{self.linestep}"
+                                self.z+=1
+                        elif pointA[1]==pointB[1] and pointA[0]==pointB[0]:
+                            line_str = f"upfinal,{self.line_lengths[self.linestep*self.z]}"
+                            self.serial_thread.arduino.write(line_str.encode('utf-8'))
+                            self.z+=1
+                            self.a=-1
+            
+    def update_video(self):
+        # no image processing is intialized until image is uploaded
+        if self.vidd==True:
+            image1 = self.vid.copy()
+
+            gray = cv.cvtColor(image1, cv.COLOR_BGR2GRAY)
+            blur= cv.GaussianBlur(gray,(19,19), cv.BORDER_DEFAULT)
+            # appling threshold to each fram according to changes from scroll bar
+            ret,thresh = cv.threshold(blur, self.threshold_value, 255, cv.THRESH_BINARY)
+            if self.flip==True:
+                inverted=cv2.bitwise_not(thresh)
+            else:
+                inverted=thresh
+            contours, hierarchies= cv.findContours(inverted,cv.RETR_EXTERNAL, cv.CHAIN_APPROX_NONE)
+
+            cv.drawContours(image1,contours, -1, (0,0,0),5) 
+            mask = np.zeros_like(image1)
+            cv.drawContours(mask, contours, -1, (255, 255, 255), thickness=cv.FILLED)
+            result = cv.bitwise_and(image1, mask)
+
+            result_gray = cv.cvtColor(result, cv.COLOR_BGR2GRAY)
+            self.line_lengths = [] # a list with all the lines lenghts in the white region including those dispalyed or not
+            line_coordinates = [] # a list with all the lines locations (x,y) in the white region including those dispalyed or not
+
+            for x in range(result_gray.shape[1]):
+                col_pixels = result_gray[:, x]
+                line_length = cv.countNonZero(col_pixels) # couting the length of each line in white region(nonzero region)
+                if line_length != 0: 
+                    self.line_lengths.append(line_length)
+                    y_coordinates = np.where(col_pixels > 0)[0] # adding the  vertical lines
+                    line_coordinates.append([(x, y) for y in y_coordinates])
+
+            line_coordinates_np = [np.array(line, dtype=np.int32) for line in line_coordinates]
+            self.lines = [] #a list with only all the displayed lines locations (x,y) 
+
+            for i in range(0, len(line_coordinates_np), self.linestep):
+                if i < len(line_coordinates_np):
+                    self.lines.append(line_coordinates_np[i])
+            # drawing lines to observe the movement of the printer 
+            for i in range(self.z):
+                if i%2==0:
+                    if i+1<len(self.lines):
+                        cv.line(result, self.lines[i][-1],self.lines[i+1][-1], (255,0,0), 2)
+                if i%2==1:
+                    if i+1<len(self.lines):
+                        cv.line(result, self.lines[i][0],self.lines[i+1][0], (255,0,0), 2)
+                
+            cv.polylines(result, self.lines, isClosed=True, color=(0, 0, 255), thickness=4)
+            cv.polylines(result, self.lines[:self.z+1], isClosed=True, color=(0, 255, 0), thickness=4)
+
+
+            cv.imshow('results', result)
+
+if __name__ == "__main__":
+    App = QApplication(sys.argv)
+    window = Window()
+    sys.exit(App.exec_())
