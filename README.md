@@ -38,7 +38,7 @@ pip install numpy,
 pip install PyQt5,
 pip install serial,
 
-# Use the code in VS.code, and run
-# Follow The link to youtube video.
+# Use the code in VS.code, run, and Enjoy :)
+# Follow The link to our youtube instruction video.
 
 
