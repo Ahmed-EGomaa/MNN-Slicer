@@ -27,3 +27,16 @@ MNN Slicer is not just a tool; it's a community-driven project. Dive into the wo
 Visit our GitHub repository, explore the code, and join the MNN Slicer community. Revolutionize your kitchen and redefine the future of food printing!
 
 🌐 Explore our MNN Slicer on GitHub 🍽️✨
+
+
+Procedures:
+Pip install the followings:
+pip install opencv-python, 
+pip install CV,
+pip install numpy,
+pip install PyQt5,
+pip install serial,
+
+Use the code in VS.code, and run
+
+
