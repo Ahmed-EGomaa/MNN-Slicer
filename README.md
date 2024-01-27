@@ -3,9 +3,9 @@
 <p align="center"> Authors: Mostafa Kamal Eldin, Nehal Alaa, Nancy Khalaf, Ahmed Gomaa. </p>
 
 <p align="center"> 🍲 Welcome to the Future of Food Printing with MNN Slicer! 🚀 </p>
-
-<img src="[assets/54083977/04858c94-82db-4502-8f09-c1ecc6d614ff](https://github.com/Ahmed-EGomaa/MNN-Slicer/assets/54083977/04858c94-82db-4502-8f09-c1ecc6d614ff).png">
-
+<p align="center">
+<img src="LOGO.png">
+</p>
 Introducing MNN Slicer, a groundbreaking 3D slicer designed specifically for Food-3D Bioprinting using your favorite off-the-shelf 3D printer. Unleash your culinary creativity with our innovative slicer that combines simplicity, power, and versatility, away from the Marline Complexity.
 
 🌐 Key Features:
