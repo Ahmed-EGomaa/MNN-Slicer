@@ -2,9 +2,9 @@
 #  <p align="center"> RDI Prototyping Lab, Faculty of BioTech, MSA University. </p>
 <p align="center"> Authors: Mostafa Kamal Eldin, Nehal Alaa, Nancy Khalaf, Ahmed Gomaa. </p>
 
-🍲 Welcome to the Future of Food Printing with MNN Slicer! 🚀
+<p align="center"> 🍲 Welcome to the Future of Food Printing with MNN Slicer! 🚀 </p>
 
-![MNN SLICER logo](https://github.com/Ahmed-EGomaa/MNN-Slicer/assets/149889556/50d6c47c-e299-461f-805a-9e38a18e7c92)
+<p align="center"> ![MNN SLICER logo](https://github.com/Ahmed-EGomaa/MNN-Slicer/assets/149889556/50d6c47c-e299-461f-805a-9e38a18e7c92) </p>
 
 Introducing MNN Slicer, a groundbreaking 3D slicer designed specifically for Food-3D Bioprinting using your favorite off-the-shelf 3D printer. Unleash your culinary creativity with our innovative slicer that combines simplicity, power, and versatility, away from the Marline Complexity.
 
