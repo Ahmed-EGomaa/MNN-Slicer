@@ -1,0 +1,443 @@
+//#include "thermistortables.h"
+#include <stdlib.h>
+
+#define X_STEP_PIN         54
+#define X_DIR_PIN          55
+#define X_ENABLE_PIN       38
+float stepsPerRevolutionX;
+
+#define Y_STEP_PIN         60
+#define Y_DIR_PIN          61
+#define Y_ENABLE_PIN       56
+float stepsPerRevolutionY;
+
+#define Z_STEP_PIN         46
+#define Z_DIR_PIN          48
+#define Z_ENABLE_PIN       62
+const int stepsPerRevolutionZ = 10000;
+
+#define E_STEP_PIN         26
+#define E_DIR_PIN          28
+#define E_ENABLE_PIN       24
+const int stepsPerRevolutionE = 5000;
+
+#define Q_STEP_PIN         36
+#define Q_DIR_PIN          34
+#define Q_ENABLE_PIN       30
+const int stepsPerRevolutionQ = 5000;
+float s;
+float third;
+String receivedData;
+int commaIndex;
+int r;
+int A;
+String last;
+unsigned long currentMillis;
+unsigned long previousMillis = 0;
+unsigned long previousMillis2 = 0;
+int layerthickness;
+int zlen;
+int speed=500;
+float pressure=1000;
+float pressure2=0;
+
+float selectedpressure=1000;
+float selectedpressure2=0;
+
+
+void pause(){
+  do {
+  digitalWrite(9, LOW);  
+  String received = Serial.readStringUntil('\n');
+  if(received=="resume"){
+    A=1;
+    Serial.println(last);
+  }
+  } while (A==0);
+}
+
+void XAxisRight()
+{
+   for(int x = 0; x < r; x++)
+  {
+   digitalWrite(X_DIR_PIN, LOW);
+    digitalWrite(X_STEP_PIN, HIGH);
+    delayMicroseconds(speed);
+    digitalWrite(X_STEP_PIN, LOW);
+    delayMicroseconds(speed);
+
+EAxisUp();
+      
+  }
+}
+
+
+void XAxisLeft()
+{
+     for(int x = 0; x < r; x++)
+  {
+   digitalWrite(X_DIR_PIN, HIGH);
+    digitalWrite(X_STEP_PIN, HIGH);
+    delayMicroseconds(speed);
+    digitalWrite(X_STEP_PIN, LOW);
+    delayMicroseconds(speed);
+
+EAxisUp();
+      
+      }
+}
+
+
+void YAxisLeft()
+{
+  
+   for(int y = 0; y < r; y++)
+  {
+   digitalWrite(Y_DIR_PIN, HIGH);
+    digitalWrite(Y_STEP_PIN, HIGH);
+    delayMicroseconds(speed);
+    digitalWrite(Y_STEP_PIN, LOW);
+    delayMicroseconds(speed);
+
+ EAxisUp();    
+  }
+}
+
+
+void YAxisRight()
+{
+  
+   for(int y = 0; y < r; y++)
+  {
+ digitalWrite(Y_DIR_PIN, LOW);
+    digitalWrite(Y_STEP_PIN, HIGH);
+    delayMicroseconds(speed);
+    digitalWrite(Y_STEP_PIN, LOW);
+    delayMicroseconds(speed);
+
+  EAxisUp();    
+  }
+}
+
+
+
+void ZAxisUp()
+{ for(int z = 0; z < r; z++)
+  {
+   digitalWrite(Z_DIR_PIN, HIGH);
+    digitalWrite(Z_STEP_PIN, HIGH);
+    delayMicroseconds(speed);
+    digitalWrite(Z_STEP_PIN, LOW);
+    delayMicroseconds(speed);
+} }
+
+
+void ZAxisDown()
+{ for(int z = 0; z < r; z++)
+  {
+ digitalWrite(Z_DIR_PIN, LOW);
+    digitalWrite(Z_STEP_PIN, HIGH);
+    delayMicroseconds(speed);
+    digitalWrite(Z_STEP_PIN, LOW);
+    delayMicroseconds(speed);
+}
+}
+
+void QAxisUp()
+{
+   digitalWrite(Q_DIR_PIN, HIGH);
+    digitalWrite(Q_STEP_PIN, HIGH);
+    delayMicroseconds(1);
+    digitalWrite(Q_STEP_PIN, LOW);
+    delayMicroseconds(1);
+}
+
+
+void QAxisDown()
+{
+ digitalWrite(Q_DIR_PIN, LOW);
+    digitalWrite(Q_STEP_PIN, HIGH);
+    delayMicroseconds(speed);
+    digitalWrite(Q_STEP_PIN, LOW);
+    delayMicroseconds(speed);
+}
+
+void EAxisUp()
+{
+   digitalWrite(E_DIR_PIN, HIGH);
+    digitalWrite(E_STEP_PIN, HIGH);
+    delayMicroseconds(1);
+    digitalWrite(E_STEP_PIN, LOW);
+    delayMicroseconds(1);
+}
+
+
+void EAxisDown()
+{
+ digitalWrite(E_DIR_PIN, LOW);
+    digitalWrite(E_STEP_PIN, HIGH);
+    delayMicroseconds(speed);
+    digitalWrite(E_STEP_PIN, LOW);
+    delayMicroseconds(speed);
+}
+
+void setup() {
+  currentMillis = millis ();
+previousMillis = currentMillis;
+previousMillis2=currentMillis;
+  pinMode(9, OUTPUT);
+  pinMode(X_STEP_PIN  , OUTPUT);
+  pinMode(X_DIR_PIN    , OUTPUT);
+  pinMode(X_ENABLE_PIN    , OUTPUT);
+  
+  pinMode(Y_STEP_PIN  , OUTPUT);
+  pinMode(Y_DIR_PIN    , OUTPUT);
+  pinMode(Y_ENABLE_PIN    , OUTPUT);
+  
+  pinMode(Z_STEP_PIN  , OUTPUT);
+  pinMode(Z_DIR_PIN    , OUTPUT);
+  pinMode(Z_ENABLE_PIN    , OUTPUT);
+  
+  pinMode(E_STEP_PIN  , OUTPUT);
+  pinMode(E_DIR_PIN    , OUTPUT);
+  pinMode(E_ENABLE_PIN    , OUTPUT);
+  
+  pinMode(Q_STEP_PIN  , OUTPUT);
+  pinMode(Q_DIR_PIN    , OUTPUT);
+  pinMode(Q_ENABLE_PIN    , OUTPUT);
+  
+   digitalWrite(X_ENABLE_PIN    , LOW);
+    digitalWrite(Y_ENABLE_PIN    , LOW);
+    digitalWrite(Z_ENABLE_PIN    , LOW);
+    digitalWrite(E_ENABLE_PIN    , LOW);
+    digitalWrite(Q_ENABLE_PIN    , LOW);
+    Serial.begin(115200);
+}
+
+
+void loop() {
+
+    if (Serial.available() > 0) {
+        // Read the received data from Python
+        String receivedData = Serial.readStringUntil('\n');
+        Serial.println("Received Data:");
+        Serial.println(receivedData);
+        if (receivedData == "Zdown"){
+          r=zlen;
+          ZAxisDown();
+          delay(200);
+          }
+        if (receivedData == "Zup"){
+          r=zlen;
+          ZAxisUp();
+          delay(200);
+          }
+        int commaIndex = receivedData.indexOf(',');
+        int secondCommaIndex = receivedData.indexOf(',', commaIndex + 1);
+
+        if (commaIndex != -1) {
+            currentMillis = millis ();
+            // main pump
+            if ((currentMillis - previousMillis) >= (1000)) {
+              digitalWrite(9, LOW);
+              
+              }
+              if ((currentMillis - previousMillis) >= (pressure)) {
+            digitalWrite(9, HIGH); 
+                previousMillis = currentMillis;
+              }
+        // fat pump
+            if ((currentMillis - previousMillis2) >= (1000)) {
+              digitalWrite(10, LOW);
+              
+              }
+              if ((currentMillis - previousMillis2) >= (pressure2)) {
+              digitalWrite(10, HIGH); 
+                previousMillis2 = currentMillis;
+              }
+
+
+            String firstPart = receivedData.substring(0, commaIndex);
+            String secondPart = receivedData.substring(commaIndex + 1, secondCommaIndex);
+            String thirdPart = receivedData.substring(secondCommaIndex + 1);
+            third= atof(thirdPart.c_str());
+            // s= atof(secondPart.c_str());
+            s= atof(secondPart.c_str())*third;
+            r= (20000*s)/13;
+
+
+            if (firstPart=="pressure"){
+              pressure=s;
+              selectedpressure=s;
+            }
+            if (firstPart=="pressure2"){
+              pressure2=s;
+              selectedpressure2=s;
+              pressure2=0;
+            }
+
+            if (firstPart=="layer"){
+              layerthickness=r;
+            }
+            if (firstPart=="speed"){
+              speed=s;
+            }
+            
+            if (firstPart=="zlen"){
+              zlen=r;
+            }
+
+
+              if (firstPart == "upfinalzfat"){
+              YAxisLeft();   //up
+              delay(200);
+              last= "donefinalz";
+              //shifting for main pump
+              r=(20000*8.25)/13;
+              XAxisLeft();
+              delay(200);
+              pressure2=0;
+              pressure=selectedpressure;
+              Serial.println(last); 
+            }
+              if (firstPart == "downfinalzfat" ) { 
+              YAxisRight();   //down
+              delay(200); 
+              last= "donefinalz";
+              //shifting for main pump
+              r=(20000*8.25)/13;
+              XAxisLeft();
+              delay(200);
+              pressure2=0;
+              pressure=selectedpressure;
+              Serial.println(last);
+              }
+
+            if (firstPart == "upfinalz"){
+              YAxisLeft();   //up
+              delay(200);
+              last= "donefinalz";
+              Serial.println(last);
+              
+            }
+              if (firstPart == "downfinalz" ) { 
+              YAxisRight();   //down
+              delay(200); 
+              last= "donefinalz";
+              Serial.println(last);
+              }
+            if (firstPart == "rightfinalz"){
+              XAxisLeft();   //right
+              delay(200);
+              last= "donefinalz";
+              //shifting for fat pump
+              r=(20000*8.25)/13;
+              XAxisRight();
+              delay(200);
+              pressure2=selectedpressure2;
+              pressure=0;
+              Serial.println(last);
+            }
+            if (firstPart == "leftfinalz"){
+              XAxisRight();   //left
+              delay(200);
+              last= "donefinalz";
+              //shifting for fat pump
+              r=(20000*8.25)/13;
+              XAxisRight();
+              delay(200);
+              pressure2=selectedpressure2;
+              pressure=0;
+              Serial.println(last);
+            }
+
+
+            if (firstPart == "downtry" ) { 
+              YAxisRight();   //down
+              delay(200); }
+
+            if (firstPart == "down") { 
+              YAxisRight();   //down
+              delay(200);  
+               last= "donedown";
+                Serial.println(last);}
+            if (firstPart == "upshift") { 
+              YAxisLeft();   //up
+              delay(200);  
+              last= "doneupshift";
+              Serial.println(last);}
+            
+            if (firstPart == "right") {
+              XAxisLeft();   //right
+              delay(200); 
+               last= "doneright";
+              Serial.println(last);
+            }
+            if (firstPart == "left") {
+              XAxisRight();   //left
+              delay(200); 
+               last= "doneleft";
+              Serial.println(last);
+              }
+
+              if (firstPart == "leftfinal") {
+              XAxisRight();   //left
+              delay(200); 
+              last= "donefinal";
+              Serial.println(last);
+              }
+
+            if (firstPart == "down1") {
+              YAxisRight(); //down
+              delay(200); 
+               last= "donedown1";
+              Serial.println(last);
+              }
+
+            if (firstPart == "right1") { 
+              XAxisLeft();   //right
+              delay(200); 
+               last= "doneright1";
+              Serial.println(last);
+            }
+             if (firstPart == "rightfinal") { 
+              XAxisLeft();   //right
+              delay(200);   
+               last= "donefinal";  
+              Serial.println(last);
+            }
+            if (firstPart == "up") { 
+              YAxisLeft();  //up
+              delay(200); 
+               last= "doneup";
+              Serial.println(last);
+            }
+            if (firstPart == "upfinal" ) {
+              YAxisLeft();  //up
+              delay(200); 
+               last= "donefinal";
+              Serial.println(last);
+            }
+            if (firstPart == "downfinal") { 
+              YAxisRight();   //down
+              delay(200);   
+               last= "donefinal";
+              Serial.println(last);
+            }
+            // if (firstPart == "upfinalz" ||firstPart == "downfinalz"||firstPart == "rightfinalz"||firstPart == "leftfinalz" ){
+            //   r=layerthickness;
+            //   ZAxisUp();
+            //   delay(200);
+            // }
+          // digitalWrite(9, LOW);
+        }
+          if (receivedData == "pause") {
+          int A=0;
+          pause();
+          }
+         if (receivedData == "resume") {
+          int A=1;
+          Serial.println(last);
+          }
+    }
+}

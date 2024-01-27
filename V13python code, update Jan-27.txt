@@ -1,0 +1,1050 @@
+import cv2
+import cv2 as cv
+import numpy as np
+from PyQt5.QtWidgets import QApplication, QSpinBox, QMainWindow, QScrollBar, QLabel, QPushButton, QFileDialog, QWidget,QVBoxLayout, QFrame
+from PyQt5.QtCore import Qt, QTimer, QObject, pyqtSignal
+from PyQt5.QtGui import QImage, QPixmap , QFont
+import sys
+import serial
+import threading
+import math
+import random
+
+class SerialThread(QObject):
+    data_received = pyqtSignal(str)
+
+    def __init__(self, port='/dev/cu.usbserial-1420'):
+        super().__init__()
+        self.port = port
+        self.running = False
+        self.arduino = None
+
+    def start_serial(self):
+        self.running = True
+        self.arduino = serial.Serial(self.port, 115200, timeout=1)
+        while self.running:
+            if self.arduino:
+                try:
+                    response = self.arduino.readline().rstrip(b'\r\n').decode('utf-8')
+                    self.data_received.emit(response)
+                    # self.last_response = response  # Update last_response
+                except serial.SerialException as e:
+                    # Handle exceptions, e.g., print or log them
+                    print(f"SerialException: {e}")
+            else:
+                break
+
+    def stop_serial(self):
+        self.running = False
+        if self.arduino:
+            self.arduino.close()
+
+class Window(QMainWindow):
+    def __init__(self):
+        super().__init__()
+        #main GUIwindow setup
+        self.setWindowTitle("MNN Slicer")
+        self.setGeometry(100, 100, 1200, 1000)
+
+        self.slicerlogolabel = QLabel(self)
+        self.slicerlogolabel.setGeometry(50, 50, 150, 150)  # Adjust the geometry as needed
+        self.pixmap = QPixmap("/Users/nihal/Downloads/MNN SLICER logo.jpg")
+        self.slicerlogolabel.setPixmap(self.pixmap.scaled(self.slicerlogolabel.size(), Qt.KeepAspectRatio, Qt.SmoothTransformation))
+    
+        self.RDIlogolabel = QLabel(self)
+        self.RDIlogolabel.setGeometry(1000, 50, 150, 150)  # Adjust the geometry as needed
+        self.pixmap = QPixmap("/Users/nihal/Downloads/Logopit_1668882116556-600x600.jpg")
+        self.RDIlogolabel.setPixmap(self.pixmap.scaled(self.RDIlogolabel.size(), Qt.KeepAspectRatio, Qt.SmoothTransformation))
+
+        self.image_label = QLabel(self)
+        self.image_label.setGeometry(50, 200, 300, 300)  # Adjust the geometry as needed
+        self.pointB=()
+        self.pointA=()
+        self.pointxB=()
+        self.pointxA=()
+        self.pointfB=()
+        self.layer=1
+        self.doneshift=True
+        self.shifting=0
+        self.linestep = 20
+        self.threshold_value=125
+        self.scaler=0.1
+        self.z = 0
+        self.a= -1
+        self.fatlines = []
+        self.fat=True
+
+        self.font1 = QFont()
+        self.font1.setBold(True)
+        self.font1.setPointSize(32)
+        self.font2 = QFont()
+        self.font2.setBold(True)
+        self.font2.setPointSize(17)
+        self.font3 = QFont()
+        self.font3.setBold(True)
+        self.font3.setPointSize(18)
+        self.font4= QFont()
+        # self.font3.setBold(True)
+        self.font4.setPointSize(15)
+
+        self.line1_label = QLabel("MNN Slicer", self)
+        self.line1_label.setGeometry(550, 50, 200, 50)
+        self.line1_label.setFont(self.font1)
+
+        self.line2_label = QLabel("Authors: Mostafa Kamal Eldin, Nehal Alaa, Nancy Khalaf, , Huda Mohammed, Ahmed Gomaa", self)
+        self.line2_label.setGeometry(230, 100, 740, 100)
+        self.line2_label.setFont(self.font2)
+
+        self.text = QLabel("***COPY RIGHTS***", self)
+        self.text.setGeometry(50, 600, 600, 100)
+        self.text.setFont(self.font3)
+
+        self.link = QLabel('<a href="https://github.com/Ahmed-EGomaa/MNN-Slicer"> MNN github Text</a>', self)
+        self.link.setOpenExternalLinks(True)
+        self.link.setGeometry(50, 650, 600, 100)
+        self.link.setFont(self.font3)
+
+        # self.text1 = QLabel("* for the pump to be continously on, pump pressure =1 *", self)
+        # self.text1.setGeometry(50, 700, 600, 100)
+        # self.text1.setFont(self.font2)
+
+        #linestep scrollbar setup 
+        #linstep controls distance between each line, subsequently controlling num of lines  
+        self.scrollbar = QScrollBar(self)
+        self.scrollbar.setGeometry(650, 200, 30, 200)
+        self.scrollbar.setRange(1, 200)
+        self.scrollbar.setStyleSheet("background : #cf1968;")
+        self.scrollbar.valueChanged.connect(self.update_linestep)
+        self.label = QLabel("line step Value: 20", self)
+        self.label.setGeometry(700, 250, 300, 80)
+        self.label.setWordWrap(True)
+        
+
+        #theshold scrollbar setup 
+        #threshold controls masking od desired shape
+        #this program can handle both binary and non binary images 
+        self.threshscrollbar = QScrollBar(self)
+        self.threshscrollbar.setGeometry(850, 200, 30, 200)
+        self.threshscrollbar.setRange(25, 250)  # Adjust the range according to your needs
+        self.threshscrollbar.setStyleSheet("background : #c3d0e6;")
+        self.threshscrollbar.valueChanged.connect(self.update_threshold)
+        self.threshold_label = QLabel("Threshold Value: 125", self)
+        self.threshold_label.setGeometry(900, 250, 300, 80)
+        self.threshold_label.setWordWrap(True)
+        
+
+        #a scaler scrollbar
+        self.scalerscrol = QScrollBar(self)
+        self.scalerscrol.setGeometry(450, 200, 30, 200)
+        self.scalerscrol.setRange(1, 10000) # Adjust the range according to your needs
+        self.scalerscrol.setStyleSheet("background : #030302;")
+        self.scalerscrol.valueChanged.connect(self.scalerupdate)
+        self.scalerlabel = QLabel("scaler:0.1", self)
+        self.scalerlabel.setGeometry(500, 250, 300, 80)
+        self.scalerlabel.setWordWrap(True)
+        
+
+        # self.vid = cv2.imread(filename)  # Update with your image path
+
+        # button for image upload from desktop
+        self.upload_button = QPushButton("Upload Image", self)
+        self.upload_button.setGeometry(400, 450, 150, 50)
+        self.upload_button.clicked.connect(self.upload_image)
+        # button for image upload from desktop
+        #flip
+        self.flip=False
+        self.flip_button = QPushButton("flip mask", self)
+        self.flip_button.setGeometry(550, 450, 150, 50)
+        self.flip_button.clicked.connect(self.flip_mask)
+
+        #button for printing only one random line to test the program first
+        self.tryline=False # intailized as False and changes once user clicks the button
+        self.tryoneline = QPushButton("try 1 line", self)
+        self.tryoneline.setGeometry(700, 450, 150, 50)
+        self.tryoneline.clicked.connect(self.tryonelineaction)
+
+        # start button when clicked printing starts and data is sent to arduino
+        self.start = False # intailized as False and changes once user clicks the button
+        self.start_button = QPushButton("Start", self)
+        self.start_button.setGeometry(850, 450, 150, 50)
+        self.start_button.clicked.connect(self.start_action)
+
+        #pause/resume
+        # self.last_response_before_pause = ""
+        self.paused = False
+        self.printing=True
+        self.pause_resume_button = QPushButton("Pause", self)
+        self.pause_resume_button.setGeometry(400, 500, 150, 50)
+        self.pause_resume_button.clicked.connect(self.toggle_pause_resume)
+
+        #reset
+        self.reset=False
+        self.reset_button = QPushButton("reset program", self)
+        self.reset_button.setGeometry(550, 500, 150, 50)
+        self.reset_button.clicked.connect(self.resetprogram)
+
+        #terminator
+        self.exit_button = QPushButton("Exit", self)
+        self.exit_button.setGeometry(850, 500, 150, 50)
+        self.exit_button.clicked.connect(self.exit_program)
+
+        #terminator
+        self.Contrib = QPushButton("contributions", self)
+        self.Contrib.setGeometry(700, 500, 150, 50)
+        # self.exit_button.clicked.connect(self.exit_program)
+
+        self.zdown = QPushButton("Z Axis Down", self)
+        self.zdown.setGeometry(1000, 500, 150, 50)
+        self.zdown.clicked.connect(self.zzdown)
+
+        self.zup = QPushButton("Z Axis UP", self)
+        self.zup.setGeometry(1000, 450, 150, 50)
+        self.zup.clicked.connect(self.zzup)
+        
+        
+        box1 = QFrame(self)
+        box1.setGeometry(810, 620,310,120)
+        box1.setStyleSheet("background : #c3d0e6;")
+        
+        self.textt1 = QLabel("***layer properties***", self)
+        self.textt1.setGeometry(885, 575, 280, 120)
+        self.textt1.setFont(self.font4)
+        
+        self.label_layer = QLabel('Layer Number:', self)
+        self.label_layer.setGeometry(850, 650, 120, 30)
+        self.number_input = QSpinBox(self)
+        self.number_input.setGeometry(950, 650, 60, 30)
+        self.number_input.setRange(1, 100)  # Set the range from 1 to 100
+        self.submit_button_layer = QPushButton('Submit', self)
+        self.submit_button_layer.setGeometry(1020, 650, 80, 30)
+        self.submit_button_layer.clicked.connect(self.on_submit)
+        self.layernum=5
+
+        self.label_layer_thickness = QLabel('Layerthickness: mm', self)
+        self.label_layer_thickness.setGeometry(820, 700, 120, 30)
+        self.thickness_input = QSpinBox(self)
+        self.thickness_input.setGeometry(950, 700, 60, 30)
+        self.thickness_input.setRange(1, 100)  # Set the range from 1 to 100
+        self.submit_button_layer_thickness = QPushButton('Submit', self)
+        self.submit_button_layer_thickness.setGeometry(1020, 700, 80, 30)
+        self.submit_button_layer_thickness.clicked.connect(self.on_submit_t)
+        self.layerthickness=1
+
+
+        self.labelz = QLabel('UP/DOWN length: cm', self)
+        self.labelz.setGeometry(810, 570, 150, 30)
+        self.zinput = QSpinBox(self)
+        self.zinput.setGeometry(950, 570, 60, 30)
+        self.zinput.setRange(1, 100)
+        self.submitz = QPushButton('Submit', self)
+        self.submitz.setGeometry(1020, 570, 80, 30)
+        self.submitz.clicked.connect(self.on_submit_z)
+        self.zlenght=1
+
+
+        box1 = QFrame(self)
+        box1.setGeometry(510, 620,280,120)
+        box1.setStyleSheet("background : #c3d0e6;")
+        
+        self.textt = QLabel("***pump flow***", self)
+        self.textt.setGeometry(585, 575, 280, 120)
+        self.textt.setFont(self.font4)
+
+        self.labelp = QLabel('pump pressure: ', self)
+        self.labelp.setGeometry(530, 650, 150, 30)
+        self.pinput = QSpinBox(self)
+        self.pinput.setGeometry(630, 650, 60, 30)
+        self.pinput.setRange(1, 20)
+        self.submitp = QPushButton('Submit', self)
+        self.submitp.setGeometry(700, 650, 80, 30)
+        self.submitp.clicked.connect(self.on_submit_p)
+        self.pressure=1
+        
+        self.labelp2 = QLabel('fat percentage:% ', self)
+        self.labelp2.setGeometry(520, 700, 150, 30)
+        self.pinput2 = QSpinBox(self)
+        self.pinput2.setGeometry(630, 700, 60, 30)
+        self.pinput2.setRange(10, 100)
+        self.submitp2 = QPushButton('Submit', self)
+        self.submitp2.setGeometry(700, 700, 80, 30)
+        self.submitp2.clicked.connect(self.on_submit_p2)
+        self.pressure2=20
+
+        self.labelspeed = QLabel('printing speed: ', self)
+        self.labelspeed.setGeometry(530, 570, 150, 30)
+        self.inputspeed = QSpinBox(self)
+        self.inputspeed.setGeometry(630, 570, 60, 30)
+        self.inputspeed.setRange(100, 1500)
+        self.submitspeed = QPushButton('Submit', self)
+        self.submitspeed.setGeometry(700, 570, 80, 30)
+        self.submitspeed.clicked.connect(self.on_submit_speed)
+        self.speed=500
+
+        self.timer = QTimer(self)
+        self.timer.timeout.connect(self.update_video)
+        self.timer.start(1)
+        self.serial_thread = SerialThread('/dev/cu.usbserial-1420')
+        self.serial_thread.data_received.connect(self.handle_serial_data)
+        self.serial_worker = threading.Thread(target=self.serial_thread.start_serial)
+        self.serial_worker.start()
+        self.vidd=False
+        self.show()
+
+    def on_submit(self):
+        entered_number = self.number_input.value()
+        self.layernum= entered_number
+    
+    def on_submit_speed(self):
+        numberspeed = self.inputspeed.value()
+        self.speed= numberspeed
+        self.serial_thread.arduino.write(f"speed,{self.speed},1".encode('utf-8'))
+
+    def on_submit_t(self):
+        number = self.thickness_input.value()
+        self.layerthickness= number/10
+        self.serial_thread.arduino.write(f"layer,{self.layerthickness},1".encode('utf-8'))
+
+    def on_submit_z(self):
+        numberz = self.zinput.value()
+        self.layerz= numberz
+        self.serial_thread.arduino.write(f"zlen,{self.layerz},1".encode('utf-8'))
+    
+    def on_submit_p(self):
+        numberp = self.pinput.value()
+        self.layerp= numberp*1000
+        self.serial_thread.arduino.write(f"pressure,{self.layerp},1".encode('utf-8'))
+
+    def on_submit_p2(self):
+        numberp2 = self.pinput2.value()
+        self.layerp2= numberp2*100
+        self.serial_thread.arduino.write(f"pressure2,{self.layerp},1".encode('utf-8'))
+
+
+    def zzdown(self):
+        self.serial_thread.arduino.write("\nZdown\n".encode('utf-8'))
+    
+    def zzup(self):
+        self.serial_thread.arduino.write("\nZup\n".encode('utf-8'))
+
+    def resetprogram(self):
+        self.z=0
+        self.a=-1
+        # self.fat=True
+        self.paused = False
+        self.pointB=()
+        self.pointA=()
+        self.pointxB=()
+        self.pointxA=()
+        self.pointfB=()
+        self.layer=1
+        self.doneshift=True
+        self.shifting=0
+        # self.vidd=False
+
+    def upload_image(self):
+        options = QFileDialog.Options()
+        options |= QFileDialog.DontUseNativeDialog
+        fileName, _ = QFileDialog.getOpenFileName(self, "QFileDialog.getOpenFileName()", "", "Image Files (*.png *.jpg *.jpeg *.bmp *.gif *.webp)", options=options)
+        if fileName:
+            self.vid = cv2.imread(fileName)
+            # cv.namedWindow('results')
+            self.vidd=True # once the image is uploaded this value is setr to true to start the program
+
+    def exit_program(self):
+        if self.serial_thread.running:
+            # Send a stop command to Arduino
+            self.serial_thread.arduino.write("exit".encode('utf-8'))
+            # Stop the serial thread
+            self.serial_thread.stop_serial()
+            # Wait for the serial thread to finish
+            self.serial_worker.join()
+        cv.destroyAllWindows()
+        self.timer.stop()  # Stop the timer
+        self.close()
+
+    def flip_mask(self):
+        self.flip=True
+
+    def toggle_pause_resume(self):
+        self.paused = not self.paused
+        if self.paused==True:
+            self.pause_resume_button.setText("Resume")
+            # Store the last response before pausing
+            self.serial_thread.arduino.write("\npause\n".encode('utf-8'))
+            print("py pause")
+            self.printing== False
+        else:
+            self.pause_resume_button.setText("Pause")
+            # Use the stored response when resuming
+            self.serial_thread.arduino.write("\nresume\n".encode('utf-8'))
+            print("py resume")
+            self.printing== True
+
+    def update_threshold(self):
+        self.threshold_value = self.threshscrollbar.value()#the value is updated according to users adjustment
+        self.threshold_label.setText("Threshold Value: " + str(self.threshold_value))
+
+    def scalerupdate(self):
+        self.scaler = self.scalerscrol.value()/1000 #the value is updated according to users adjustment
+        self.scalerlabel.setText("scale: " + str(self.scaler))
+
+    def start_action(self):
+        self.start =True
+        self.a=0
+        # self.fat=True
+
+    def tryonelineaction(self):
+        self.tryline=True
+
+    def update_linestep(self):
+        self.linestep = self.scrollbar.value()#the value is updated according to users adjustment
+        self.label.setText("Current Value: " + str(self.linestep))
+
+    def handle_serial_data(self, response):
+        print(response)
+        if self.printing== True:
+
+            if self.vidd==True:# when an image is uploaded the condtion starts
+
+                if self.tryline==True:#when user clicks the try 1 line button the trial print is started
+                    line_str = f"downtry,{self.line_lengths[6]},{self.scaler}"
+                    self.serial_thread.arduino.write(line_str.encode('utf-8'))
+                    self.tryline=False # resetting the try to False so that the random line is not printed again
+
+
+                #self.lines is a list that includes the pixel locations for all displayed lines , space between each line is known from linestep 
+                if self.z<len(self.lines) and self.layer<=self.layernum and self.layer!=0: # when the line counter is less than the len of line list the condtion starts 
+
+                    #----------------------------------------CASE A------------------------------------------
+                    #while printing we have two direction , one is printing DOWN when line counter is even(every other line)
+                    #also this conditon is started when user clicks start button                           ------line1--------                   -----------line2---------------
+                    # lines list is consisted of smaller lists each reasmmbleing a line displayed [(x0,y0),(x1,y1),(x2,y2),(x3,y3),(x4,y4)],[(x0,y0),(x1,y1),(x2,y2),(x3,y3),(x4,y4)]
+                    #each of these smaller lists consits of tuples(x,y) reasmmbling all pixel locations or points on the line
+                    if self.a==0:
+                        if self.z==0:
+                            self.pointA = self.lines[self.z][0]
+                            self.pointB = self.lines[self.z+1][0]
+                            if self.shifting==1 and response=="donefinalz":
+                                self.doneshift=False
+                                if self.pointfB[1]< self.pointA[1]:
+                                    shift=int(self.pointA[1]-self.pointfB[1])
+                                    line_str = f"upshift,{shift},{self.scaler}"
+                                elif self.pointfB[1]>self.pointA[1]:
+                                    shift=int(self.pointfB[1]-self.pointA[1])
+                                    line_str = f"upshift,{shift},{self.scaler}"
+                                else:
+                                    line_str = f"upshift,0,1"
+                                self.serial_thread.arduino.write(line_str.encode('utf-8'))
+                                self.shifting=0
+                            elif response=="doneupshift":
+                                shift=int(self.pointfB[0]-self.pointA[0])
+                                line_str = f"leftfinal,{shift},{self.scaler}"
+                                self.serial_thread.arduino.write(line_str.encode('utf-8'))
+                                self.doneshift=True
+
+                        if self.z%2==0 and self.doneshift==True:
+                            
+                            self.pointA = self.lines[self.z][-1] # pointA resambles the last point of lines[z] ( we need it to calculate dist to move either up or down to the next line )
+                            #                  we used [-1] as after moving down of  the line and to move to the next to we draw a hypotenuse from pointA-PointB 
+                            if self.z + 1 == len(self.lines): #when line counter z is almost running out of lines list meaning that there is no next line to move to so pointB=pointA
+                                self.pointB = self.lines[self.z][-1]
+
+                            elif self.z + 1 < len(self.lines):
+                                self.pointB = self.lines[self.z+1][-1] # pointB resambles the last point of lines[z+1] meaning the line we want to move to (next line)
+                            #         -----------------------------CASEA1------------------
+                            #inside the downward movement we have two possiblities whether we are moving towards a higher point (pointB)
+                            #so our  direction must consider moving towards that point without getting out of the shape range
+                            # movement will be 1. down of the line till pointA, 2. using Pythagorean theorem we will caculate the unknown up movement 
+                            #towards pointB 3. along with already known right dist (linestep)
+                            if self.pointB[1]<self.pointA[1]:
+                                if response=="donefinal" or self.start==True:
+                                    print("CaseA1")
+                                    line_str = f"down,{self.line_lengths[self.linestep*self.z]},{self.scaler}"
+                                    self.serial_thread.arduino.write(line_str.encode('utf-8'))
+                                    self.start=False
+                                elif response=="donedown":
+                                    distAB= math.sqrt(((self.pointA[0]-self.pointB[0])**2)+((self.pointA[1]-self.pointB[1])**2))
+                                    lenup=math.sqrt((distAB**2)-(self.linestep**2))
+                                    line_str = f"up,{lenup},{self.scaler}"
+                                    self.serial_thread.arduino.write(line_str.encode('utf-8'))
+                                elif response=="doneup":
+                                    line_str = f"rightfinal,{self.linestep},{self.scaler}"
+                                    self.serial_thread.arduino.write(line_str.encode('utf-8'))
+                                    self.z+=1 
+                                    print("end A1")
+                                    # after finshing one line movement and moved to next line start point we add +1 to line counter
+                            #         -----------------------------CASEA2------------------
+                            #  moving twoards a lower PointB
+                            ## movement will be 1. down of the line till pointA, 2. using Pythagorean theorem we will caculate the unknown down movement 
+                            #towards pointB 3. along with already known right dist (linestep)
+                            elif self.pointB[1]>self.pointA[1]:
+                                if response=="donefinal" or self.start==True:
+                                    print("CaseA2")
+                                    line_str = f"down,{self.line_lengths[self.linestep*self.z]},{self.scaler}"
+                                    self.serial_thread.arduino.write(line_str.encode('utf-8'))
+                                    self.start=False
+                                elif response=="donedown":
+                                    line_str = f"right1,{self.linestep},{self.scaler}"
+                                    self.serial_thread.arduino.write(line_str.encode('utf-8'))
+                                elif response=="doneright1":
+                                    distAB= math.sqrt(((self.pointA[0]-self.pointB[0])**2)+((self.pointA[1]-self.pointB[1])**2))
+                                    lendown=math.sqrt((distAB**2)-(self.linestep**2))
+                                    line_str = f"downfinal,{lendown},{self.scaler}"
+                                    self.serial_thread.arduino.write(line_str.encode('utf-8'))
+                                    self.z+=1
+                                    print("end A2 ")
+                            #this case is applied only when there is no next line 
+                            elif self.pointA[1]==self.pointB[1] and self.pointA[0]!=self.pointB[0]:
+                                if response=="donefinal" or self.start==True:
+                                    print("CaseA3")
+                                    line_str = f"down,{self.line_lengths[self.linestep*self.z]},{self.scaler}"
+                                    self.serial_thread.arduino.write(line_str.encode('utf-8'))
+                                    self.start=False
+                                elif response=="donedown":
+                                    line_str = f"rightfinal,{self.linestep},{self.scaler}"
+                                    self.z+=1
+                                    print("end A3")
+                            elif self.pointA[1]==self.pointB[1] and self.pointA[0]==self.pointB[0] and response=="donefinal":
+                                print("Case AF")
+                                line_str = f"downfinalz,{self.line_lengths[self.linestep*self.z]},{self.scaler}"
+                                # line_str = f"downfinalz,{self.line_lengths[self.linestep*(self.z+1)]},{self.scaler}"
+                                self.serial_thread.arduino.write(line_str.encode('utf-8'))
+                                self.z=0
+                                self.a=1
+                                self.shifting=1
+                                self.layer+=1
+                                self.start=True
+                                self.doneshift=False
+                                # self.pointB=self.lines[-1][-1]
+                                print("end AF")
+                            
+                        ##----------------------------------------CASE B------------------------------------------
+                        #same cases applies to this condtion but with upward motion applied when z is odd num(every other line)
+                        elif self.z%2==1:
+                            if self.z<len(self.lines):
+                                # pointA=self.lines[self.z][0]
+                                # pointB = self.lines[self.z+1][0]
+                                self.pointA = self.lines[self.z][0]
+                                if self.z + 1 == len(self.lines):
+                                    self.pointB = self.lines[self.z][0]
+                                elif self.z + 1 < len(self.lines):
+                                    self.pointB = self.lines[self.z+1][0]
+                                #         -----------------------------CASEB1------------------
+                                if self.pointB[1]<self.pointA[1]:
+                                    if response=="donefinal":
+                                        print("CaseB1")
+                                        line_str = f"up,{self.line_lengths[self.linestep*self.z]},{self.scaler}"
+                                        self.serial_thread.arduino.write(line_str.encode('utf-8'))
+                                    elif response=="doneup":
+                                        line_str = f"right,{self.linestep},{self.scaler}"
+                                        self.serial_thread.arduino.write(line_str.encode('utf-8'))
+                                    elif response=="doneright":
+                                        distAB= math.sqrt(((self.pointA[0]-self.pointB[0])**2)+((self.pointA[1]-self.pointB[1])**2))
+                                        lenup=math.sqrt((distAB**2)-(self.linestep**2))
+                                        line_str = f"upfinal,{lenup},{self.scaler}"
+                                        self.serial_thread.arduino.write(line_str.encode('utf-8'))
+                                        self.z+=1
+                                        print("end B1")
+                                #         -----------------------------CASEB2------------------
+                                elif self.pointB[1]>self.pointA[1]:
+                                    if response=="donefinal":
+                                        print("Case B2")
+                                        line_str = f"up,{self.line_lengths[self.linestep*self.z]},{self.scaler}"
+                                        self.serial_thread.arduino.write(line_str.encode('utf-8'))
+                                    elif response=="doneup":
+                                        distAB= math.sqrt(((self.pointA[0]-self.pointB[0])**2)+((self.pointA[1]-self.pointB[1])**2))
+                                        lendown=math.sqrt((distAB**2)-(self.linestep**2))
+                                        line_str = f"down,{lendown},{self.scaler}"
+                                        self.serial_thread.arduino.write(line_str.encode('utf-8'))
+
+                                    elif response=="donedown":
+                                        line_str = f"rightfinal,{self.linestep},{self.scaler}"
+                                        self.serial_thread.arduino.write(line_str.encode('utf-8'))
+                                        self.z+=1
+                                        print("end B2")
+                                elif self.pointA[1]==self.pointB[1]and self.pointA[0]!=self.pointB[0]:
+                                    print("Case B3")
+                                    if response=="donefinal" :
+                                        line_str = f"up,{self.line_lengths[self.linestep*self.z]},{self.scaler}"
+                                        self.serial_thread.arduino.write(line_str.encode('utf-8'))
+                                    elif response=="doneup":
+                                        line_str = f"rightfinal,{self.linestep},{self.scaler}"
+                                        self.z+=1
+                                        print("end B3")
+                                elif self.pointA[1]==self.pointB[1] and self.pointA[0]==self.pointB[0] and response=="donefinal":
+                                    print("Case BF")
+                                    line_str = f"upfinalz,{self.line_lengths[self.linestep*self.z]},{self.scaler}" 
+                                    # line_str = f"upfinalz,{self.line_lengths[self.linestep*(self.z+1)]},{self.scaler}" 
+                                    self.serial_thread.arduino.write(line_str.encode('utf-8'))
+                                    self.z=0
+                                    self.a=1
+                                    self.shifting=1
+                                    self.start=True
+                                    self.layer+=1
+                                    self.doneshift=False
+                                    # self.pointB=self.lines[-1][-1]
+                                    print("end BF")
+
+                    elif self.a==1:
+                        if self.z==0:
+                            self.pointxA = self.lines[self.z][0]
+                            # self.pointxB = self.lines[self.z+1][0]
+                            if self.shifting==1 and response=="donefinalz":
+                                self.doneshift=False
+                                shift=int(self.pointB[1]-self.pointxA[1])
+                                line_str = f"upshift,{shift},{self.scaler}"
+                                self.serial_thread.arduino.write(line_str.encode('utf-8'))
+                                self.shifting=0
+                            elif response=="doneupshift":
+                                shift=int(self.pointB[0]-self.pointxA[0])
+                                line_str = f"leftfinal,{(shift)},{self.scaler}"
+                                self.serial_thread.arduino.write(line_str.encode('utf-8'))
+                                self.doneshift=True
+
+
+                        if self.z%2==0 and self.doneshift==True:
+                            
+                            self.pointxA = self.lines[self.z][-1] # pointA resambles the last point of lines[z] ( we need it to calculate dist to move either up or down to the next line )
+                            #                  we used [-1] as after moving down of  the line and to move to the next to we draw a hypotenuse from pointA-PointB 
+                            if self.z + 1 == len(self.lines): #when line counter z is almost running out of lines list meaning that there is no next line to move to so pointB=pointA
+                                self.pointxB = self.lines[self.z][-1]
+
+                            elif self.z + 1 < len(self.lines):
+                                self.pointxB = self.lines[self.z+1][-1] # pointB resambles the last point of lines[z+1] meaning the line we want to move to (next line)
+                            #         -----------------------------CASEA1------------------
+                            #inside the downward movement we have two possiblities whether we are moving towards a higher point (pointB)
+                            #so our  direction must consider moving towards that point without getting out of the shape range
+                            # movement will be 1. down of the line till pointA, 2. using Pythagorean theorem we will caculate the unknown up movement 
+                            #towards pointB 3. along with already known right dist (linestep)
+                            if self.pointxB[0]<self.pointxA[0]:
+                                if response=="donefinal" or self.start==True:
+                                    print("CaseA1")
+                                    line_str = f"right,{self.line_lengths[self.linestep*self.z]},{self.scaler}"
+                                    self.serial_thread.arduino.write(line_str.encode('utf-8'))
+                                    self.start=False
+                                elif response=="doneright":
+                                    distAB= math.sqrt(((self.pointxA[0]-self.pointxB[0])**2)+((self.pointxA[1]-self.pointxB[1])**2))
+                                    lenleft=math.sqrt((distAB**2)-(self.linestep**2))
+                                    line_str = f"left,{lenleft},{self.scaler}"
+                                    self.serial_thread.arduino.write(line_str.encode('utf-8'))
+                                elif response=="doneleft":
+                                    line_str = f"downfinal,{self.linestep},{self.scaler}"
+                                    self.serial_thread.arduino.write(line_str.encode('utf-8'))
+                                    self.z+=1 
+                                    print("end A1")
+                                    # after finshing one line movement and moved to next line start point we add +1 to line counter
+                            #         -----------------------------CASEA2------------------
+                            #  moving twoards a lower PointB
+                            ## movement will be 1. down of the line till pointA, 2. using Pythagorean theorem we will caculate the unknown down movement 
+                            #towards pointB 3. along with already known right dist (linestep)
+                            elif self.pointxB[0]>self.pointxA[0]:
+                                if response=="donefinal" or self.start==True:
+                                    print("CaseA2")
+                                    line_str = f"right,{self.line_lengths[self.linestep*self.z]},{self.scaler}"
+                                    self.serial_thread.arduino.write(line_str.encode('utf-8'))
+                                    self.start=False
+                                elif response=="doneright":
+                                    line_str = f"down1,{self.linestep},{self.scaler}"
+                                    self.serial_thread.arduino.write(line_str.encode('utf-8'))
+                                elif response=="donedown1":
+                                    distAB= math.sqrt(((self.pointxA[0]-self.pointxB[0])**2)+((self.pointxA[1]-self.pointxB[1])**2))
+                                    lenleft=math.sqrt((distAB**2)-(self.linestep**2))
+                                    line_str = f"leftfinal,{lenleft},{self.scaler}"
+                                    self.serial_thread.arduino.write(line_str.encode('utf-8'))
+                                    self.z+=1
+                                    print("end A2 ")
+                            #this case is applied only when there is no next line 
+                            elif self.pointxA[0]==self.pointxB[0] and self.pointxA[1]!=self.pointxB[1]:
+                                if response=="donefinal" or self.start==True:
+                                    print("CaseA3")
+                                    line_str = f"right,{self.line_lengths[self.linestep*self.z]},{self.scaler}"
+                                    self.serial_thread.arduino.write(line_str.encode('utf-8'))
+                                    self.start=False
+                                elif response=="doneright":
+                                    line_str = f"down,{self.linestep},{self.scaler}"
+                                    self.z+=1
+                                    print("end A3")
+                            elif self.pointxA[1]==self.pointxB[1] and self.pointxA[0]==self.pointxB[0] and response=="donefinal":
+                                print("Case AF")
+                                line_str = f"rightfinalz,{self.line_lengths[self.linestep*(self.z)]},{self.scaler}"
+                                self.serial_thread.arduino.write(line_str.encode('utf-8'))
+                                self.z=0
+                                self.a=2
+                                self.start=True
+                                self.shifting=1
+                                self.doneshift=False
+                                self.layer+=1
+                                self.fat=True
+                                print("end AF")
+                        
+                        ##----------------------------------------CASE B------------------------------------------
+                        #same cases applies to this condtion but with upward motion applied when z is odd num(every other line)
+                        elif self.z%2==1:
+                            if self.z<len(self.lines):
+                                # pointA=self.lines[self.z][0]
+                                # pointB = self.lines[self.z+1][0]
+                                self.pointxA = self.lines[self.z][0]
+                                if self.z + 1 == len(self.lines):
+                                    self.pointxB = self.lines[self.z][0]
+                                elif self.z + 1 < len(self.lines):
+                                    self.pointxB = self.lines[self.z+1][0]
+                                #         -----------------------------CASEB1------------------
+                                if self.pointxB[0]<self.pointxA[0]:
+                                    if response=="donefinal":
+                                        print("CaseB1")
+                                        line_str = f"left,{self.line_lengths[self.linestep*self.z]},{self.scaler}"
+                                        self.serial_thread.arduino.write(line_str.encode('utf-8'))
+                                    elif response=="doneleft":
+                                        line_str = f"down,{self.linestep},{self.scaler}"
+                                        self.serial_thread.arduino.write(line_str.encode('utf-8'))
+                                    elif response=="donedown":
+                                        distAB= math.sqrt(((self.pointxA[0]-self.pointxB[0])**2)+((self.pointxA[1]-self.pointxB[1])**2))
+                                        lenright=math.sqrt((distAB**2)-(self.linestep**2))
+                                        line_str = f"rightfinal,{lenright},{self.scaler}"
+                                        self.serial_thread.arduino.write(line_str.encode('utf-8'))
+                                        self.z+=1
+                                        print("end B1")
+                                #         -----------------------------CASEB2------------------
+                                elif self.pointxB[1]>self.pointxA[1]:
+                                    if response=="donefinal":
+                                        print("Case B2")
+                                        line_str = f"left,{self.line_lengths[self.linestep*self.z]},{self.scaler}"
+                                        self.serial_thread.arduino.write(line_str.encode('utf-8'))
+                                    elif response=="doneleft":
+                                        distAB= math.sqrt(((self.pointxA[0]-self.pointxB[0])**2)+((self.pointxA[1]-self.pointxB[1])**2))
+                                        lenright=math.sqrt((distAB**2)-(self.linestep**2))
+                                        line_str = f"right,{lenright},{self.scaler}"
+                                        self.serial_thread.arduino.write(line_str.encode('utf-8'))
+
+                                    elif response=="doneright":
+                                        line_str = f"downfinal,{self.linestep},{self.scaler}"
+                                        self.serial_thread.arduino.write(line_str.encode('utf-8'))
+                                        self.z+=1
+                                        print("end B2")
+                                elif self.pointxA[1]==self.pointxB[1]and self.pointxA[0]!=self.pointxB[0]:
+                                    print("Case B3")
+                                    if response=="donefinal" :
+                                        line_str = f"left,{self.line_lengths[self.linestep*self.z]},{self.scaler}"
+                                        self.serial_thread.arduino.write(line_str.encode('utf-8'))
+                                    elif response=="doneleft":
+                                        line_str = f"downfinal,{self.linestep},{self.scaler}"
+                                        self.z+=1
+                                        print("end B3")
+                                elif self.pointxA[1]==self.pointxB[1] and self.pointxA[0]==self.pointxB[0] and response=="donefinal":
+                                    print("Case BF")
+                                    line_str = f"leftfinalz,{self.line_lengths[self.linestep*self.z]},{self.scaler}"
+                                    self.serial_thread.arduino.write(line_str.encode('utf-8'))
+                                    self.z=0
+                                    self.a=2
+                                    self.start=True
+                                    self.shifting=0
+                                    self.doneshift=False
+                                    self.layer+=1
+                                    self.fat=True
+                                    print("end BF")
+                    
+                    elif self.a==2 and self.z<self.fatlines:
+                        if self.z==0 and self.z<=len(self.fatlines):
+                            self.pointA = self.fatlines[self.z][0]
+                            self.pointB = self.fatlines[self.z+1][0]
+                            if self.shifting==1 and response=="donefinalz":
+                                self.doneshift=False
+                                shift=int(self.pointxB[1]-self.pointA[1])
+                                line_str = f"upshift,{shift},{self.scaler}"
+                                self.serial_thread.arduino.write(line_str.encode('utf-8'))
+                                self.shifting=0
+                            elif response=="doneupshift":
+                                shift=int(self.pointxB[0]-self.pointA[0])
+                                line_str = f"leftfinal,{shift},{self.scaler}"
+                                self.serial_thread.arduino.write(line_str.encode('utf-8'))
+                                self.doneshift=True
+
+                        if self.z%2==0 and self.doneshift==True:
+                            
+                            self.pointA = self.fatlines[self.z][-1] # pointA resambles the last point of lines[z] ( we need it to calculate dist to move either up or down to the next line )
+                            #                  we used [-1] as after moving down of  the line and to move to the next to we draw a hypotenuse from pointA-PointB 
+                            if self.z + 1 == len(self.fatlines): #when line counter z is almost running out of lines list meaning that there is no next line to move to so pointB=pointA
+                                self.pointB = self.fatlines[self.z][-1]
+
+                            elif self.z + 1 < len(self.fatlines):
+                                self.pointB = self.fatlines[self.z+1][-1] # pointB resambles the last point of lines[z+1] meaning the line we want to move to (next line)
+                            #         -----------------------------CASEA1------------------
+                            #inside the downward movement we have two possiblities whether we are moving towards a higher point (pointB)
+                            #so our  direction must consider moving towards that point without getting out of the shape range
+                            # movement will be 1. down of the line till pointA, 2. using Pythagorean theorem we will caculate the unknown up movement 
+                            #towards pointB 3. along with already known right dist (linestep)
+                            if self.pointB[1]<self.pointA[1]:
+                                if response=="donefinal" or self.start==True:
+                                    print("CaseA1")
+                                    line_str = f"down,{len(self.fatlines[self.z])},{self.scaler}"
+                                    self.serial_thread.arduino.write(line_str.encode('utf-8'))
+                                    self.start=False
+                                elif response=="donedown":
+                                    lenup=self.pointA[1]-self.pointB[1]
+                                    line_str = f"up,{lenup},{self.scaler}"
+                                    self.serial_thread.arduino.write(line_str.encode('utf-8'))
+                                elif response=="doneup":
+                                    line_str = f"rightfinal,{self.pointB[0]-self.pointA[0]},{self.scaler}"
+                                    self.serial_thread.arduino.write(line_str.encode('utf-8'))
+                                    self.z+=1 
+                                    print("end A1")
+                                    # after finshing one line movement and moved to next line start point we add +1 to line counter
+                            #         -----------------------------CASEA2------------------
+                            #  moving twoards a lower PointB
+                            ## movement will be 1. down of the line till pointA, 2. using Pythagorean theorem we will caculate the unknown down movement 
+                            #towards pointB 3. along with already known right dist (linestep)
+                            elif self.pointB[1]>self.pointA[1]:
+                                if response=="donefinal" or self.start==True:
+                                    print("CaseA2")
+                                    line_str = f"down,{len(self.fatlines[self.z])},{self.scaler}"
+                                    self.serial_thread.arduino.write(line_str.encode('utf-8'))
+                                    self.start=False
+                                elif response=="donedown":
+                                    line_str = f"right1,{self.pointB[0]-self.pointA[0]},{self.scaler}"
+                                    self.serial_thread.arduino.write(line_str.encode('utf-8'))
+                                elif response=="doneright1":
+                                    lendown=self.pointB[1]-self.pointA[1]
+                                    line_str = f"downfinal,{lendown},{self.scaler}"
+                                    self.serial_thread.arduino.write(line_str.encode('utf-8'))
+                                    self.z+=1
+                                    print("end A2 ")
+                            #this case is applied only when there is no next line 
+                            elif self.pointA[1]==self.pointB[1] and self.pointA[0]!=self.pointB[0]:
+                                if response=="donefinal" or self.start==True:
+                                    print("CaseA3")
+                                    line_str = f"down,{len(self.fatlines[self.z])},{self.scaler}"
+                                    self.serial_thread.arduino.write(line_str.encode('utf-8'))
+                                    self.start=False
+                                elif response=="donedown":
+                                    line_str = f"rightfinal,{self.pointB[0]-self.pointA[0]},{self.scaler}"
+                                    self.z+=1
+                                    print("end A3")
+                            elif self.pointA[1]==self.pointB[1] and self.pointA[0]==self.pointB[0] and response=="donefinal":
+                                print("Case AF")
+                                line_str = f"downfinalzfat,{len(self.fatlines[-1])},{self.scaler}"
+                                # line_str = f"downfinalz,{self.line_lengths[self.linestep*(self.z+1)]},{self.scaler}"
+                                self.serial_thread.arduino.write(line_str.encode('utf-8'))
+                                self.z=0
+                                self.a=0
+                                self.shifting=1
+                                self.layer+=1
+                                self.start=True
+                                self.doneshift=False
+                                self.pointfB=self.pointB
+                                print("end AF")
+                        
+                        ##----------------------------------------CASE B------------------------------------------
+                        #same cases applies to this condtion but with upward motion applied when z is odd num(every other line)
+                        elif self.z%2==1:
+                            if self.z<len(self.fatlines):
+                                # pointA=self.lines[self.z][0]
+                                # pointB = self.lines[self.z+1][0]
+                                self.pointA = self.fatlines[self.z][0]
+                                if self.z + 1 == len(self.fatlines):
+                                    self.pointB = self.fatlines[self.z][0]
+                                elif self.z + 1 < len(self.fatlines):
+                                    self.pointB = self.fatlines[self.z+1][0]
+                                #         -----------------------------CASEB1------------------
+                                if self.pointB[1]<self.pointA[1]:
+                                    if response=="donefinal":
+                                        print("CaseB1")
+                                        line_str = f"up,{len(self.fatlines[self.z])},{self.scaler}"
+                                        self.serial_thread.arduino.write(line_str.encode('utf-8'))
+                                    elif response=="doneup":
+                                        line_str = f"right,{self.pointB[0]-self.pointA[0]},{self.scaler}"
+                                        self.serial_thread.arduino.write(line_str.encode('utf-8'))
+                                    elif response=="doneright":
+                                        lenup=self.pointA[1]-self.pointB[1]
+                                        line_str = f"upfinal,{lenup},{self.scaler}"
+                                        self.serial_thread.arduino.write(line_str.encode('utf-8'))
+                                        self.z+=1
+                                        print("end B1")
+                                #         -----------------------------CASEB2------------------
+                                elif self.pointB[1]>self.pointA[1]:
+                                    if response=="donefinal":
+                                        print("Case B2")
+                                        line_str = f"up,{len(self.fatlines[self.z])},{self.scaler}"
+                                        self.serial_thread.arduino.write(line_str.encode('utf-8'))
+                                    elif response=="doneup":
+                                        lendown=self.pointB[1]-self.pointA[1]
+                                        line_str = f"down,{lendown},{self.scaler}"
+                                        self.serial_thread.arduino.write(line_str.encode('utf-8'))
+
+                                    elif response=="donedown":
+                                        line_str = f"rightfinal,{self.pointB[0]-self.pointA[0]},{self.scaler}"
+                                        self.serial_thread.arduino.write(line_str.encode('utf-8'))
+                                        self.z+=1
+                                        print("end B2")
+                                elif self.pointA[1]==self.pointB[1]and self.pointA[0]!=self.pointB[0]:
+                                    print("Case B3")
+                                    if response=="donefinal" :
+                                        line_str = f"up,{len(self.fatlines[self.z])},{self.scaler}"
+                                        self.serial_thread.arduino.write(line_str.encode('utf-8'))
+                                    elif response=="doneup":
+                                        line_str = f"rightfinal,{self.pointB[0]-self.pointA[0]},{self.scaler}"
+                                        self.z+=1
+                                        print("end B3")
+                                elif self.pointA[1]==self.pointB[1] and self.pointA[0]==self.pointB[0] and response=="donefinal":
+                                    print("Case BF")
+                                    line_str = f"upfinalzfat,{len(self.fatlines[self.z])},{self.scaler}" 
+                                    # line_str = f"upfinalz,{self.line_lengths[self.linestep*(self.z+1)]},{self.scaler}" 
+                                    self.serial_thread.arduino.write(line_str.encode('utf-8'))
+                                    self.z=0
+                                    self.a=0
+                                    self.shifting=1
+                                    self.start=True
+                                    self.layer+=1
+                                    self.doneshift=False
+                                    self.pointfB=self.pointB
+                                    print("end BF")
+
+    def draw_locate_vertical_lines(self,result_gray,line_coordinates,result):
+                for x in range(result_gray.shape[1]):
+                    col_pixels = result_gray[:, x]
+                    line_length = cv.countNonZero(col_pixels) # couting the length of each line in white region(nonzero region)
+                    if line_length != 0: 
+                        self.line_lengths.append(line_length)
+                        y_coordinates = np.where(col_pixels > 0)[0] # adding the  vertical lines
+                        line_coordinates.append([(x, y) for y in y_coordinates])
+
+                line_coordinates_np = [np.array(line, dtype=np.int32) for line in line_coordinates]
+
+                for i in range(0, len(line_coordinates_np), self.linestep):
+                    if i < len(line_coordinates_np):
+                        self.lines.append(line_coordinates_np[i])
+                # drawing lines to observe the movement of the printer
+                        
+                    for i in range(self.z):
+                        if i%2==0:
+                            if i+1<len(self.lines):
+                                cv.line(result, self.lines[i][-1],self.lines[i+1][-1], (0,0,255), 2)
+                        if i%2==1:
+                            if i+1<len(self.lines):
+                                cv.line(result, self.lines[i][0],self.lines[i+1][0], (0,0,255), 2)
+                        
+                    cv.polylines(result, self.lines, isClosed=True, color=(255,0,0), thickness=4)
+                    cv.polylines(result, self.lines[:self.z+1], isClosed=True, color=(0, 255, 0), thickness=4)
+
+    def draw_locate_horizontal_lines(self,result_gray,line_coordinates,result):
+                non_zero_pixels = np.column_stack(np.where(result_gray > 0))
+
+                for row in range(result_gray.shape[0]):
+                    row_pixels = non_zero_pixels[non_zero_pixels[:, 0] == row, 1]
+                    
+                    if len(row_pixels) > 0:
+                        start_pixel = row_pixels.min()
+                        end_pixel = row_pixels.max()
+                        line_length = end_pixel - start_pixel + 1
+                        self.line_lengths.append(line_length)
+                        
+                        # Collecting all pixel coordinates on the line
+                        line_pixels = [(pixel, row) for pixel in range(start_pixel, end_pixel + 1)]
+                        line_coordinates.append(line_pixels)
+
+                        # Draw the line on the image
+                line_coordinates_np = [np.array(line, dtype=np.int32) for line in line_coordinates]
+                
+
+                for i in range(0, len(line_coordinates_np), self.linestep):
+                    if i < len(line_coordinates_np):
+                        self.lines.append(line_coordinates_np[i])
+                for i in range(self.z):
+                    if i%2==0:
+                        if i+1<len(self.lines):
+                            cv.line(result, self.lines[i][-1],self.lines[i+1][-1], (0,0,255), 2)
+                    if i%2==1:
+                        if i+1<len(self.lines):
+                            cv.line(result, self.lines[i][0],self.lines[i+1][0], (0,0,255), 2)
+                    
+                cv.polylines(result, self.lines, isClosed=True, color=(255,0,0), thickness=4)
+                cv.polylines(result, self.lines[:self.z+1], isClosed=True, color=(0, 255, 0), thickness=4)
+
+    def locate_fat_lines(self,result_gray,line_coordinates):
+                self.fatlines=[]
+                for x in range(result_gray.shape[1]):
+                    col_pixels = result_gray[:, x]
+                    line_length = cv.countNonZero(col_pixels) # couting the length of each line in white region(nonzero region)
+                    if line_length != 0: 
+                        self.line_lengths.append(line_length)
+                        y_coordinates = np.where(col_pixels > 0)[0] # adding the  vertical lines
+                        line_coordinates.append([(x, y) for y in y_coordinates])
+
+                line_coordinates_np = [np.array(line, dtype=np.int32) for line in line_coordinates]
+
+                for i in range(0, len(line_coordinates_np), self.linestep):
+                    if i < len(line_coordinates_np):
+                        self.lines.append(line_coordinates_np[i])
+
+                self.fat=False
+                for d in range(0, len(self.lines)):
+                    range_to_remove_1 = np.random.randint(1, len(self.lines[d]))
+                    range_to_remove_2 = np.random.randint(1, len(self.lines[d]))
+
+                    # Convert the NumPy array back to a Python list before modification
+                    line_list = self.lines[d].tolist()
+
+                    # Remove elements from random index -1 to -5 and random index 0 to 8 using list slicing
+                    line_list = line_list[range_to_remove_1:-range_to_remove_2]
+                    if len(line_list)!=0:
+                        self.fatlines.append(np.array(line_list, dtype=np.int32))
+                # print(self.fatlines)
+
+    def draw_fat_lines(self,result):
+                for i in range(self.z):
+                    if i%2==0:
+                        if i+1<len(self.fatlines):
+                            cv.line(result, self.fatlines[i][-1],self.fatlines[i+1][-1],(255, 0, 0), 2)
+                    if i%2==1:
+                        if i+1<len(self.fatlines):
+                            cv.line(result, self.fatlines[i][0],self.fatlines[i+1][0], (255, 0, 0), 2)
+                cv.polylines(result, self.fatlines, isClosed=True, color=(0,0,255), thickness=4)
+                cv.polylines(result, self.fatlines[:self.z + 1], isClosed=True, color=(0, 255, 0), thickness=4)
+
+    def update_video(self):
+        # no image processing is intialized until image is uploaded
+        if self.vidd==True:
+            image1 = self.vid.copy()
+            image1=cv.resize(image1,(500,400))
+            gray = cv.cvtColor(image1, cv.COLOR_BGR2GRAY)
+            blur= cv.GaussianBlur(gray,(19,19), cv.BORDER_DEFAULT)
+            # appling threshold to each fram according to changes from scroll bar
+            ret,thresh = cv.threshold(blur, self.threshold_value, 255, cv.THRESH_BINARY)
+            if self.flip==True:
+                inverted=cv2.bitwise_not(thresh)
+            else:
+                inverted=thresh
+            contours, hierarchies= cv.findContours(inverted,cv.RETR_EXTERNAL, cv.CHAIN_APPROX_NONE)
+
+            cv.drawContours(image1,contours, -1, (0,0,0),5) 
+            mask = np.zeros_like(image1)
+            cv.drawContours(mask, contours, -1, (255, 255, 255), thickness=cv.FILLED)
+            result = cv.bitwise_and(image1, mask)
+            result_gray = cv.cvtColor(result, cv.COLOR_BGR2GRAY)
+
+            self.lines = [] #a list with only all the displayed lines locations (x,y) 
+            self.line_lengths = [] # a list with all the lines lenghts in the white region including those dispalyed or not
+            line_coordinates = [] # a list with all the lines locations (x,y) in the white region including those dispalyed or not
+
+            
+            if self.a==0:
+                self.draw_locate_vertical_lines(result_gray,line_coordinates,result)
+
+            if self.a==1:
+                self.draw_locate_horizontal_lines(result_gray,line_coordinates,result)
+
+            if self.a == 2 and self.fat==True:
+                self.locate_fat_lines(result_gray,line_coordinates)
+
+            if self.a==2:
+                self.draw_fat_lines(result)
+
+            cv.putText(result,f"layer{self.layer}/{self.layernum}", (10, 30), cv.FONT_HERSHEY_SIMPLEX, 1, (0, 255, 0), 2, cv.LINE_AA)
+            result= cv.cvtColor(result, cv.COLOR_BGR2RGB)
+            image = QImage(result.data, result.shape[1], result.shape[0], result.strides[0], QImage.Format_RGB888)
+            pixmap = QPixmap.fromImage(image)
+            self.image_label.setPixmap(pixmap.scaled(self.image_label.size(), Qt.KeepAspectRatio, Qt.SmoothTransformation))
+
+if __name__ == "__main__":
+    App = QApplication(sys.argv)
+    window = Window()
+    sys.exit(App.exec_())
