@@ -5,7 +5,7 @@
 <p align="center"> 🍲 Welcome to the Future of Food Printing with MNN Slicer! 🚀 </p>
 
 <div align="center">
-  <img src="https://github.com/Ahmed-EGomaa/MNN-Slicer/blob/main/assets/149889556/50d6c47c-e299-461f-805a-9e38a18e7c92" alt="MNN SLICER logo">
+  ![MNN SLICER logo](https://github.com/Ahmed-EGomaa/MNN-Slicer/assets/149889556/50d6c47c-e299-461f-805a-9e38a18e7c92)
 </div>
 
 
