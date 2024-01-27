@@ -4,9 +4,7 @@
 
 <p align="center"> 🍲 Welcome to the Future of Food Printing with MNN Slicer! 🚀 </p>
 
-///////////////////////////////////////////////////////////////// ![Untitled222](https://github.com/Ahmed-EGomaa/MNN-Slicer/assets/54083977/04858c94-82db-4502-8f09-c1ecc6d614ff)\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\
-
-
+<img src="[assets/54083977/04858c94-82db-4502-8f09-c1ecc6d614ff](https://github.com/Ahmed-EGomaa/MNN-Slicer/assets/54083977/04858c94-82db-4502-8f09-c1ecc6d614ff).png">
 
 Introducing MNN Slicer, a groundbreaking 3D slicer designed specifically for Food-3D Bioprinting using your favorite off-the-shelf 3D printer. Unleash your culinary creativity with our innovative slicer that combines simplicity, power, and versatility, away from the Marline Complexity.
 
