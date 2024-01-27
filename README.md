@@ -4,7 +4,7 @@
 
 <p align="center"> 🍲 Welcome to the Future of Food Printing with MNN Slicer! 🚀 </p>
 
-<p align="center">![Untitled222](https://github.com/Ahmed-EGomaa/MNN-Slicer/assets/54083977/04858c94-82db-4502-8f09-c1ecc6d614ff)</p>
+///////////////////////////////////////////////////////////////// ![Untitled222](https://github.com/Ahmed-EGomaa/MNN-Slicer/assets/54083977/04858c94-82db-4502-8f09-c1ecc6d614ff)\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\
 
 
 
