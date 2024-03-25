@@ -46,3 +46,8 @@ pip install serial,
 # Follow The link to our youtube instruction video.
 #  <p align="center"> Contributors. </p>
 <p align="center"> Mostafa Kamal Eldin, Nehal Alaa, Nancy Khalaf, Ahmed Gomaa. </p>
+
+# Link to video: https://youtu.be/V_8hWyjZCyY
+# Link to design:
+# Link Preprint article: 
+
