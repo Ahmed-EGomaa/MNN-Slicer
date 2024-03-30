@@ -1,6 +1,6 @@
 #  <p align="center"> MNN-Slicer. </p>
 #  <p align="center"> RDI Prototyping Lab, Faculty of BioTech, MSA University. </p>
-<p align="center"> 🍲 Welcome to the Future of Food Printing with MNN Slicer! 🚀 </p>
+## <p align="center"> 🍲 Welcome to the Future of Food Printing with MNN Slicer! 🚀 </p>
 <p align="center"> Authors: Mostafa Kamal Eldin, Nehal Alaa, Nancy Khalaf, Ahmed Gomaa. </p>
 
 <p align="center">
